@@ -5,6 +5,9 @@ import androidx.annotation.NonNull;
 
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Action;
+import com.acmerobotics.roadrunner.AngularVelConstraint;
+import com.acmerobotics.roadrunner.MecanumKinematics;
+import com.acmerobotics.roadrunner.MinVelConstraint;
 import com.acmerobotics.roadrunner.ParallelAction;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Vector2d;
@@ -19,7 +22,9 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.TankDrive;
+import org.firstinspires.ftc.teamcode.MecanumDrive;
+
+import java.util.Arrays;
 
 @Autonomous
 public class RedGoalGate6Patterned extends LinearOpMode {
@@ -36,14 +41,18 @@ public class RedGoalGate6Patterned extends LinearOpMode {
 
     @Override
     public void runOpMode() throws InterruptedException {
+        MecanumDrive.Params PARAMS = new MecanumDrive.Params();
 
-        TankDrive.MecanumDrive drive = new TankDrive.MecanumDrive(hardwareMap, new Pose2d(52,-53,Math.toRadians(-51)));
+        MecanumKinematics kinematics = new MecanumKinematics(
+                PARAMS.inPerTick * PARAMS.trackWidthTicks, PARAMS.inPerTick / PARAMS.lateralInPerTick);
+
+        MinVelConstraint IntakeSpeed = new MinVelConstraint(Arrays.asList(kinematics.new WheelVelConstraint(5), new AngularVelConstraint(PARAMS.maxAngVel)));
+
+
+
+        MecanumDrive drive = new MecanumDrive(hardwareMap, new Pose2d(52,-53,Math.toRadians(-51)));
         DcMotorEx LeftLauncher = hardwareMap.get(DcMotorEx.class, "LeftLauncher");
         DcMotorEx RightLauncher = hardwareMap.get(DcMotorEx.class, "RightLauncher");
-        DcMotor frontLeft = hardwareMap.get(DcMotor.class, "leftFront");
-        DcMotor frontRight = hardwareMap.get(DcMotor.class, "rightFront");
-        DcMotor backLeft = hardwareMap.get(DcMotor.class, "leftBack");
-        DcMotor backRight = hardwareMap.get(DcMotor.class, "rightBack");
 
         CRServo RightIntakeLeftServo = hardwareMap.get(CRServo.class, "RightIntakeLeftServo");
         CRServo RightIntakeRightServo = hardwareMap.get(CRServo.class, "RightIntakeRightServo");
@@ -152,35 +161,33 @@ public class RedGoalGate6Patterned extends LinearOpMode {
                 drive.actionBuilder(drive.localizer.getPose())
                         .stopAndAdd(new StopLaunch(LeftLauncher,RightLauncher))
                         .strafeToLinearHeading(new Vector2d(-7,-30),Math.toRadians(0))
-                        .stopAndAdd(new StrafeSlow(frontLeft,frontRight,backLeft,backRight,.3,.85,-1))
+                        //Start intaking ball 1
+                        .strafeToLinearHeading(new Vector2d(-7,-35),Math.toRadians(0),IntakeSpeed)
                         .stopAndAdd(new TopRightIntake(RightTopServo,1))
-                        .waitSeconds(.4)
+                        .waitSeconds(.3)
                         .stopAndAdd(new TopRightIntake(RightTopServo,3))
-                        .stopAndAdd(new StrafeSlow(frontLeft,frontRight,backLeft,backRight,.3,.85,-1))
-                        .stopAndAdd(new StrafeSlow(frontLeft,frontRight,backLeft,backRight,0,.25,-1))
-                        .stopAndAdd(new StrafeSlow(frontLeft,frontRight,backLeft,backRight,1,.65,1))
+                        //Start intaking ball 2
+                        .strafeToLinearHeading(new Vector2d(-7,-40),Math.toRadians(0),IntakeSpeed)
                         .stopAndAdd(new TopRightIntake(RightTopServo, 1))
+                        .stopAndAdd(new LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,-1))
+                        //Backup and spin
+                        .strafeToLinearHeading(new Vector2d(-7,-36),Math.toRadians(180))
+                        .stopAndAdd(new TopRightIntake(RightTopServo, 3))
                         .stopAndAdd(new TopLeftIntake(LeftTopServo, 3))
+                        //lineup for ball 3
+                        .strafeToLinearHeading(new Vector2d(-7,-40),Math.toRadians(180))
+                        .stopAndAdd(new IntakeStop(RightIntakeLeftServo,RightIntakeRightServo,RightBeltMotor))
+                        //Start intaking ball 3
+                        .strafeToLinearHeading(new Vector2d(-7,-45),Math.toRadians(180),IntakeSpeed)
+                        .stopAndAdd(new TopLeftIntake(LeftTopServo, 1))
+                        //lineup for gate
+                        .strafeToLinearHeading(new Vector2d(2,-48),Math.toRadians(-90))
+                        //open gate
+                        .strafeToLinearHeading(new Vector2d(2,-55),Math.toRadians(-90))
+                        .waitSeconds(1.5)
+                        .stopAndAdd(new TopLeftIntake(LeftTopServo, 3))
+                        .stopAndAdd(new IntakeStop(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor))
                         .build()
-        );
-            drive.updatePoseEstimate();
-            Actions.runBlocking(
-                    drive.actionBuilder(drive.localizer.getPose())
-                            .stopAndAdd(new LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,-1))
-                            .strafeToLinearHeading(new Vector2d(-6.5,-36),Math.toRadians(180))
-                            .stopAndAdd(new IntakeStop(RightIntakeLeftServo,RightIntakeRightServo,RightBeltMotor))
-                            .stopAndAdd(new TopRightIntake(RightTopServo, 3))
-                            .stopAndAdd(new TopLeftIntake(LeftTopServo, 3))
-                            .stopAndAdd(new RightIntakeStart(RightIntakeLeftServo,RightIntakeRightServo,RightBeltMotor,-1))
-                            .stopAndAdd(new StartBelt(RightBeltMotor,0))
-                            .strafeToLinearHeading(new Vector2d(-4.5,-56),Math.toRadians(180))
-                            .stopAndAdd(new TopLeftIntake(LeftTopServo, 1))
-                            .waitSeconds(.75)
-                            .stopAndAdd(new TopLeftIntake(LeftTopServo, 1))
-                            .stopAndAdd(new LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,-1))
-                            .stopAndAdd(new StartBelt(LeftBeltMotor,0))
-
-                            .build()
             );
             drive.updatePoseEstimate();
             Action move4 = drive.actionBuilder(drive.localizer.getPose())
@@ -198,75 +205,8 @@ public class RedGoalGate6Patterned extends LinearOpMode {
                     new StartBeltDelayed(RightBeltMotor,1,2.5),
                     new StartBeltDelayed(RightBeltMotor,0,2.75),
                     new StartBeltDelayed(RightBeltMotor,1,3),
-                    new StartBeltDelayed(LeftBeltMotor,1,3)
+                    new StartBeltDelayed(LeftBeltMotor,1,2.75)
             ));
-
-            drive.updatePoseEstimate();
-            Actions.runBlocking(
-                    drive.actionBuilder(drive.localizer.getPose())
-                            .strafeToLinearHeading(new Vector2d(15,-25),Math.toRadians(0))
-                            .stopAndAdd(new LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,1))
-                            .stopAndAdd(new RightIntakeStart(RightIntakeLeftServo,RightIntakeRightServo,RightBeltMotor,1))
-                            .build()
-            );
-
-            drive.updatePoseEstimate();
-            Actions.runBlocking(
-                    drive.actionBuilder(drive.localizer.getPose())
-                            .stopAndAdd(new RightIntakeStart(RightIntakeLeftServo,RightIntakeRightServo,RightBeltMotor,1))
-                            .strafeToLinearHeading(new Vector2d(15,-30),Math.toRadians(0))
-                            .stopAndAdd(new StrafeSlow(frontLeft,frontRight,backLeft,backRight,.35,.75,-1))
-                            .stopAndAdd(new StrafeSlow(frontLeft,frontRight,backLeft,backRight,0,.25,-1))
-                            .stopAndAdd(new TopRightIntake(RightTopServo, 1))
-                            .build()
-            );
-            drive.updatePoseEstimate();
-            Actions.runBlocking(
-                    drive.actionBuilder(drive.localizer.getPose())
-                            .strafeToLinearHeading(new Vector2d(15,-35),Math.toRadians(0))
-                            .stopAndAdd(new TopRightIntake(RightTopServo, 3))
-                            .stopAndAdd(new StrafeSlow(frontLeft,frontRight,backLeft,backRight,.35,.75,-1))
-                            .stopAndAdd(new StrafeSlow(frontLeft,frontRight,backLeft,backRight,0,.25,-1))
-                            .stopAndAdd(new TopRightIntake(RightTopServo, 1))
-                            .stopAndAdd(new StrafeSlow(frontLeft,frontRight,backLeft,backRight,1,.25,1))
-                            .stopAndAdd(new LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,1))
-                            .build()
-            );
-            drive.updatePoseEstimate();
-            Actions.runBlocking(
-                    drive.actionBuilder(drive.localizer.getPose())
-                            .strafeToLinearHeading(new Vector2d(15,-37),Math.toRadians(180))
-                            .stopAndAdd(new TopRightIntake(RightTopServo, 3))
-                            .stopAndAdd(new TopLeftIntake(LeftTopServo, 3))
-                            .stopAndAdd(new RightIntakeStart(RightIntakeLeftServo,RightIntakeRightServo,RightBeltMotor,-1))
-                            .stopAndAdd(new StartBelt(RightBeltMotor,0))
-                            .stopAndAdd(new StrafeSlow(frontLeft,frontRight,backLeft,backRight,.75,.5,1))
-                            .stopAndAdd(new StrafeSlow(frontLeft,frontRight,backLeft,backRight,0,.25,1))
-                            .stopAndAdd(new TopLeftIntake(LeftTopServo, 1))
-                            .stopAndAdd(new PrimeLaunchers(LeftLauncher,RightLauncher,1800,1800,1))
-                            .stopAndAdd(new TopLeftIntake(LeftTopServo, 3))
-                            .stopAndAdd(new LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,-1))
-                            .stopAndAdd(new StartBelt(LeftBeltMotor,.125))
-                            .strafeToLinearHeading(new Vector2d(25,-25),Math.toRadians(-47))
-                            .build()
-            );
-            drive.updatePoseEstimate();
-
-            Action move5 = drive.actionBuilder(drive.localizer.getPose())
-                    .waitSeconds(.075)
-                    .turnTo(Math.toRadians(-44))
-                    .waitSeconds(1)
-                    .strafeToLinearHeading(new Vector2d(60,-15),Math.toRadians(180))
-                    .build();
-
-
-
-            Actions.runBlocking(new ParallelAction(
-                    move5,
-                    new StartBelt(LeftBeltMotor,1),
-                    new StartBeltDelayed(RightBeltMotor,1,.15)
-            ));
-
 
         }
         else if (detectedId == 2) {
@@ -278,26 +218,6 @@ public class RedGoalGate6Patterned extends LinearOpMode {
 
     }
 
-    public static class StartBelt implements Action {
-        DcMotor BeltMotor;
-        double Dir;
-        ElapsedTime LaunchTimer;
-
-        public StartBelt(DcMotor Motor,double power) {
-            this.BeltMotor = Motor;
-            this.Dir = power;
-        }
-
-        @Override
-        public boolean run(@NonNull TelemetryPacket telemetryPacket) {
-            if (LaunchTimer == null) {
-                LaunchTimer = new ElapsedTime();
-                BeltMotor.setPower(Dir);
-            }
-
-            return false;
-        }
-    }
 
     public static class StartBeltDelayed implements Action {
         DcMotor BeltMotor;
@@ -494,39 +414,6 @@ public class RedGoalGate6Patterned extends LinearOpMode {
         }
     }
 
-    public static class StrafeSlow implements Action {
-        private final DcMotor fl, fr, bl, br;
-        private final double speed;
-        private final double timeSec;
-        private final double dir;
-        private ElapsedTime timer;
-
-        public StrafeSlow(DcMotor fl, DcMotor fr, DcMotor bl, DcMotor br,
-                          double speed, double timeSec, double dir) {
-            this.fl = fl; this.fr = fr; this.bl = bl; this.br = br;
-            this.speed = speed; this.timeSec = timeSec; this.dir = dir;
-        }
-
-        @Override
-        public boolean run(@NonNull TelemetryPacket packet) {
-            if (timer == null) timer = new ElapsedTime();
-
-            fl.setPower(-speed * dir);
-            fr.setPower( speed * dir);
-            bl.setPower( speed * dir);
-            br.setPower(-speed * dir);
-
-            if (timer.seconds() >= timeSec) {
-                fl.setPower(0);
-                fr.setPower(0);
-                bl.setPower(0);
-                br.setPower(0);
-                return false;
-            }
-
-            return true;
-        }
-    }
 
     public static class PrimeLaunchers implements Action {
 

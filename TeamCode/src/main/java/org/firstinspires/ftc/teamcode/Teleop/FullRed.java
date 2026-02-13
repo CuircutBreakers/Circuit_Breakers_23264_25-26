@@ -8,8 +8,8 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
+import org.firstinspires.ftc.teamcode.MecanumDrive;
 import org.firstinspires.ftc.teamcode.PoseStorage;
-import org.firstinspires.ftc.teamcode.TankDrive;
 
 @TeleOp
 public class FullRed extends LinearOpMode {
@@ -26,7 +26,7 @@ public class FullRed extends LinearOpMode {
 
     private HuskyLens camera;
 
-    private TankDrive.MecanumDrive drive;
+    private MecanumDrive drive;
 
     // =========================
     // State variables
@@ -166,7 +166,7 @@ public class FullRed extends LinearOpMode {
         rightIntakeTopServo.setPosition(RIGHT_MIDDLE_POS);
         leftIntakeTopServo.setPosition(LEFT_MIDDLE_POS);
         // RoadRunner / drive wrapper
-        drive = new TankDrive.MecanumDrive(hardwareMap, PoseStorage.currentPose);
+        drive = new MecanumDrive(hardwareMap, PoseStorage.currentPose);
     }
 
     private void updateTopIntakeServo(Servo servo,

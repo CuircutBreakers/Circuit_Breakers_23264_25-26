@@ -17,7 +17,7 @@ public final class CustomPathTest extends LinearOpMode {
         Pose2d traj1end = new Pose2d(30, 30, Math.toRadians(90));
         Pose2d traj2end = new Pose2d(-30, -30, Math.toRadians(180));
 
-        TankDrive.MecanumDrive drive = new TankDrive.MecanumDrive(hardwareMap,startPose);
+        MecanumDrive drive = new MecanumDrive(hardwareMap,startPose);
 
 
         Actions.runBlocking(

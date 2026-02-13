@@ -17,7 +17,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.TankDrive;
+import org.firstinspires.ftc.teamcode.MecanumDrive;
 
 @Autonomous
 public class RedFront6Ball extends LinearOpMode {
@@ -63,7 +63,7 @@ public class RedFront6Ball extends LinearOpMode {
     @Override
     public void runOpMode() throws InterruptedException {
 
-        TankDrive.MecanumDrive drive = new TankDrive.MecanumDrive(hardwareMap, new Pose2d(52,-53,Math.toRadians(-51)));
+        MecanumDrive drive = new MecanumDrive(hardwareMap, new Pose2d(52,-53,Math.toRadians(-51)));
         DcMotor LeftLauncher = hardwareMap.get(DcMotor.class, "LeftLauncher");
         DcMotor RightLauncher = hardwareMap.get(DcMotor.class, "RightLauncher");
         DcMotor frontLeft = hardwareMap.get(DcMotor.class, "leftFront");
