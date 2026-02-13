@@ -41,12 +41,14 @@ public class RedGoalGate6Patterned extends LinearOpMode {
 
     @Override
     public void runOpMode() throws InterruptedException {
+
+        //region init
         MecanumDrive.Params PARAMS = new MecanumDrive.Params();
 
         MecanumKinematics kinematics = new MecanumKinematics(
                 PARAMS.inPerTick * PARAMS.trackWidthTicks, PARAMS.inPerTick / PARAMS.lateralInPerTick);
 
-        MinVelConstraint IntakeSpeed = new MinVelConstraint(Arrays.asList(kinematics.new WheelVelConstraint(5), new AngularVelConstraint(PARAMS.maxAngVel)));
+        MinVelConstraint IntakeSpeed = new MinVelConstraint(Arrays.asList(kinematics.new WheelVelConstraint(10), new AngularVelConstraint(PARAMS.maxAngVel)));
 
 
 
@@ -86,23 +88,17 @@ public class RedGoalGate6Patterned extends LinearOpMode {
         sleep(200);
         LeftBeltMotor.setPower(0);
         RightBeltMotor.setPower(0);
+        //endregion
 
         waitForStart();
-
-
-
-        waitForStart();
-
+//region stage 1
         TagResult tag = new TagResult();
 
         Pose2d startPose = new Pose2d(52, -53, Math.toRadians(-51));
 
-// Optional but recommended
-
         Action Move1 = drive.actionBuilder(startPose)
-                .strafeToLinearHeading(new Vector2d(30,-30), Math.toRadians(-43))
+                .strafeToLinearHeading(new Vector2d(30,-30), Math.toRadians(-40))
                 .build();
-
 
 
         Actions.runBlocking(
@@ -130,7 +126,7 @@ public class RedGoalGate6Patterned extends LinearOpMode {
 
 
         Pose2d start3 = drive.localizer.getPose();
-        Pose2d end3   = new Pose2d(-7, -25, Math.toRadians(0));
+        Pose2d end3   = new Pose2d(-8, -25, Math.toRadians(0));
 
         double dx3 = end3.position.x - start3.position.x;
         double dy3 = end3.position.y - start3.position.y;
@@ -149,7 +145,7 @@ public class RedGoalGate6Patterned extends LinearOpMode {
 
         ));
 
-
+//endregion
         int detectedId = tag.id;  // <-- THIS is your result
 
         telemetry.addData("Final Tag ID", detectedId);
@@ -160,30 +156,31 @@ public class RedGoalGate6Patterned extends LinearOpMode {
         Actions.runBlocking(
                 drive.actionBuilder(drive.localizer.getPose())
                         .stopAndAdd(new StopLaunch(LeftLauncher,RightLauncher))
-                        .strafeToLinearHeading(new Vector2d(-7,-30),Math.toRadians(0))
+                        .strafeToLinearHeading(new Vector2d(-8,-30),Math.toRadians(0))
                         //Start intaking ball 1
-                        .strafeToLinearHeading(new Vector2d(-7,-35),Math.toRadians(0),IntakeSpeed)
+                        .strafeToLinearHeading(new Vector2d(-8,-33),Math.toRadians(0),IntakeSpeed)
                         .stopAndAdd(new TopRightIntake(RightTopServo,1))
                         .waitSeconds(.3)
                         .stopAndAdd(new TopRightIntake(RightTopServo,3))
                         //Start intaking ball 2
-                        .strafeToLinearHeading(new Vector2d(-7,-40),Math.toRadians(0),IntakeSpeed)
+                        .strafeToLinearHeading(new Vector2d(-8,-38),Math.toRadians(0),IntakeSpeed)
                         .stopAndAdd(new TopRightIntake(RightTopServo, 1))
-                        .stopAndAdd(new LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,-1))
+                        .stopAndAdd(new LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,1))
                         //Backup and spin
-                        .strafeToLinearHeading(new Vector2d(-7,-36),Math.toRadians(180))
+                        .strafeToLinearHeading(new Vector2d(-8,-37),Math.toRadians(0))
+                        .strafeToLinearHeading(new Vector2d(-8,-34),Math.toRadians(90))
                         .stopAndAdd(new TopRightIntake(RightTopServo, 3))
                         .stopAndAdd(new TopLeftIntake(LeftTopServo, 3))
                         //lineup for ball 3
-                        .strafeToLinearHeading(new Vector2d(-7,-40),Math.toRadians(180))
+                        .strafeToLinearHeading(new Vector2d(-8,-37),Math.toRadians(180))
                         .stopAndAdd(new IntakeStop(RightIntakeLeftServo,RightIntakeRightServo,RightBeltMotor))
                         //Start intaking ball 3
-                        .strafeToLinearHeading(new Vector2d(-7,-45),Math.toRadians(180),IntakeSpeed)
+                        .strafeToLinearHeading(new Vector2d(-8,-50),Math.toRadians(180))
                         .stopAndAdd(new TopLeftIntake(LeftTopServo, 1))
                         //lineup for gate
-                        .strafeToLinearHeading(new Vector2d(2,-48),Math.toRadians(-90))
+                        .strafeToLinearHeading(new Vector2d(3,-48),Math.toRadians(-90))
                         //open gate
-                        .strafeToLinearHeading(new Vector2d(2,-55),Math.toRadians(-90))
+                        .strafeToLinearHeading(new Vector2d(3,-55),Math.toRadians(-90))
                         .waitSeconds(1.5)
                         .stopAndAdd(new TopLeftIntake(LeftTopServo, 3))
                         .stopAndAdd(new IntakeStop(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor))
@@ -201,10 +198,10 @@ public class RedGoalGate6Patterned extends LinearOpMode {
 
             Actions.runBlocking(new ParallelAction(
                     move4,
-                    new PrimeLaunchers(LeftLauncher,RightLauncher,1700,1700,1),
-                    new StartBeltDelayed(RightBeltMotor,1,2.5),
-                    new StartBeltDelayed(RightBeltMotor,0,2.75),
-                    new StartBeltDelayed(RightBeltMotor,1,3),
+                    new PrimeLaunchers(LeftLauncher,RightLauncher,1650,1650,1),
+                    new StartBeltDelayed(RightBeltMotor,1,2),
+                    new StartBeltDelayed(RightBeltMotor,0,2.5),
+                    new StartBeltDelayed(RightBeltMotor,1,2.75),
                     new StartBeltDelayed(LeftBeltMotor,1,2.75)
             ));
 
@@ -295,8 +292,8 @@ public class RedGoalGate6Patterned extends LinearOpMode {
         public boolean run(@NonNull TelemetryPacket telemetryPacket) {
             if (LaunchTimer == null) {
                 LaunchTimer = new ElapsedTime();
-                Left.setPower(1*dir);
-                Right.setPower(1*dir);
+                Left.setPower(-1*dir);
+                Right.setPower(-1*dir);
                 Belt.setPower(-1*dir);
             }
 
