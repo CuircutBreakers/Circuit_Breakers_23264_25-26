@@ -28,7 +28,7 @@ import org.firstinspires.ftc.teamcode.MecanumDrive;
 import java.util.Arrays;
 
 @Autonomous
-public class RedGoalGate6Patterned extends LinearOpMode {
+public class RedGoalGate6PatternedTest extends LinearOpMode {
 
     HuskyLens Camera;
 

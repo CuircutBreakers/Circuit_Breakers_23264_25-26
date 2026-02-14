@@ -33,7 +33,6 @@ public class FullBlueTest extends LinearOpMode {
     // =========================
     // State variables
     // =========================
-    private double launchPowerScale = 1.0;
     private int launcherDirection = 1; // 1 = normal, -1 = reversed
 
     // Right top intake positions
@@ -62,6 +61,14 @@ public class FullBlueTest extends LinearOpMode {
     private static final double V_MID2 = 1900;
     private static final double V_MID3 = 1800;
     private static final double V_NEAR = 1700;
+
+    private double noTagVelocity = 1650;
+    private static final double NO_TAG_STEP = 50;
+
+    private boolean lastDpadUp = false;
+    private boolean lastDpadDown = false;
+
+
 
 
 
@@ -194,7 +201,7 @@ public class FullBlueTest extends LinearOpMode {
 
 
     private double pickVelocityFromTagHeight(double tagHeight) {
-        if (tagHeight < 0) return 1650; // no tag
+        if (tagHeight < 0) return noTagVelocity; // no tag
 
         if (tagHeight < H1) return V_FAR;
         if (tagHeight < H2) return V_MID1;
@@ -318,6 +325,20 @@ public class FullBlueTest extends LinearOpMode {
 
     private void handleLauncherPower(double tagHeight) {
 
+        boolean upPressed = gamepad2.dpad_up && !lastDpadUp;
+        boolean downPressed = gamepad2.dpad_down && !lastDpadDown;
+
+        if (upPressed) {
+            noTagVelocity += NO_TAG_STEP;
+        }
+
+        if (downPressed) {
+            noTagVelocity -= NO_TAG_STEP;
+        }
+
+        lastDpadUp = gamepad2.dpad_up;
+        lastDpadDown = gamepad2.dpad_down;
+
         // Direction toggle
         if (gamepad2.dpad_left) {
             launcherDirection = -1;
@@ -325,18 +346,12 @@ public class FullBlueTest extends LinearOpMode {
             launcherDirection = 1;
         }
 
-        // Manual scale knob (same behavior, but scaling velocity now)
-        if (gamepad2.dpad_down) {
-            launchPowerScale = 0.95;
-        } else if (gamepad2.dpad_up) {
-            launchPowerScale = 1.00;
-        }
 
         // 1) Zone velocity from tag height
         zoneVelOut = pickVelocityFromTagHeight(tagHeight);
 
         // 2) Apply manual scaling
-        finalVelOut = zoneVelOut * launchPowerScale;
+        finalVelOut = zoneVelOut;
 
         boolean fire = (gamepad2.left_trigger > 0.05) || (gamepad2.right_trigger > 0.05);
 
@@ -364,7 +379,6 @@ public class FullBlueTest extends LinearOpMode {
                 (Math.abs(gamepad2.right_stick_y) > INTAKE_DEADBAND ? "UP" : "MID"));
         boolean tagVisible = tagHeight >= 0;
         telemetry.addData("Tag", tagVisible ? "FOUND" : "NOT FOUND");
-        telemetry.addData("Launch Scale", launchPowerScale);
         telemetry.addData("ZoneVel(tps)", "%.0f", zoneVelOut);
         telemetry.addData("TargetVel(tps)", "%.0f", finalVelOut);
         telemetry.addData("LeftVel(tps)", "%.0f", leftVelOut);
