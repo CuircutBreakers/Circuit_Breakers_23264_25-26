@@ -5,9 +5,9 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.MecanumDrive;
 import org.firstinspires.ftc.teamcode.PoseStorage;
@@ -19,7 +19,7 @@ public class FullBlue extends LinearOpMode {
     // Hardware (class fields)
     // =========================
     private DcMotor frontLeft, frontRight, backLeft, backRight;
-    private DcMotor leftLauncher, rightLauncher;
+    private DcMotorEx leftLauncher, rightLauncher;
     private DcMotor leftBeltMotor, rightBeltMotor;
 
     private CRServo leftIntakeLeftServo, leftIntakeRightServo;
@@ -33,7 +33,6 @@ public class FullBlue extends LinearOpMode {
     // =========================
     // State variables
     // =========================
-    private double launchPowerScale = 1.0;
     private int launcherDirection = 1; // 1 = normal, -1 = reversed
 
     // Right top intake positions
@@ -57,46 +56,21 @@ public class FullBlue extends LinearOpMode {
     private static final double H4 = 42;
 
     // Matching powers for each zone (far -> near)
-    private static final double P_FAR    = .79; // height < H1
-    private static final double P_MID1   = 0.78; // H1..H2
-    private static final double P_MID2   = 0.76; // H2..H3
-    private static final double P_MID3   = 0.75; // H3..H4
-    private static final double P_NEAR   = 0.725; // height >= H4
+    private static final double V_FAR  = 2100;
+    private static final double V_MID1 = 2000;
+    private static final double V_MID2 = 1900;
+    private static final double V_MID3 = 1800;
+    private static final double V_NEAR = 1700;
+
+    private double noTagVelocity = 1725;
+    private static final double NO_TAG_STEP = 50;
+
+    private boolean lastDpadUp = false;
+    private boolean lastDpadDown = false;
 
 
-    // Voltage compensation steps (tune)
-    private static final double V1 = 13.8;  // fresh
-    private static final double V2 = 13.6;
-    private static final double V3 = 13.4;
-    private static final double V4 = 13.2;  // getting low
-
-    // Multipliers (higher when voltage is lower)
-    private static final double VC_FRESH = 1.00;  // >= V1
-    private static final double VC_MID1  = 1.03;  // V2..V1
-    private static final double VC_MID2  = 1.06;  // V3..V2
-    private static final double VC_MID3  = 1.09;  // V4..V3
-    private static final double VC_LOW   = 1.12;  // < V4
-
-    // Over-voltage reduction (tune)
-    private static final double OV1 = 14.0;  // start reducing above this
-    private static final double OV2 = 14.2;
-    private static final double OV3 = 14.4;
-
-    // Multipliers (lower when voltage is too high)
-    private static final double OV_OK     = 1.00; // <= OV1
-    private static final double OV_HIGH1  = 0.97; // OV1..OV2
-    private static final double OV_HIGH2  = 0.94; // OV2..OV3
-    private static final double OV_HIGH3  = 0.91; // > OV3
-
-    private double overVoltOut = 1.0;
 
 
-    private double zonePowerOut = 0.0;       // distance step power
-    private double voltCompOut = 1.0;        // voltage step multiplier
-    private double finalPowerOut = 0.0;      // final applied power (after scale + volt comp)
-    private double batteryVOut = 0.0;        // optional, nice to display
-
-    private double motorPowerOut = 0.0;
 
     // pixels of hysteresis (tune)
 
@@ -146,8 +120,18 @@ public class FullBlue extends LinearOpMode {
         backRight  = hardwareMap.get(DcMotor.class, "rightBack");
 
         // Launchers
-        leftLauncher  = hardwareMap.get(DcMotor.class, "LeftLauncher");
-        rightLauncher = hardwareMap.get(DcMotor.class, "RightLauncher");
+        leftLauncher  = hardwareMap.get(DcMotorEx.class, "LeftLauncher");
+        rightLauncher = hardwareMap.get(DcMotorEx.class, "RightLauncher");
+
+        leftLauncher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        rightLauncher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+
+        leftLauncher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        rightLauncher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+// Flywheels usually feel better with FLOAT
+        leftLauncher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        rightLauncher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         // Left intake + belt
         leftIntakeLeftServo  = hardwareMap.get(CRServo.class, "LeftIntakeLeftServo");
@@ -216,21 +200,14 @@ public class FullBlue extends LinearOpMode {
     }
 
 
-    private double pickPowerFromTagHeight(double tagHeight) {
-        if (tagHeight < 0) return 1; // no tag
+    private double pickVelocityFromTagHeight(double tagHeight) {
+        if (tagHeight < 0) return noTagVelocity; // no tag
 
-        if (tagHeight < H1) return P_FAR;
-        if (tagHeight < H2) return P_MID1;
-        if (tagHeight < H3) return P_MID2;
-        if (tagHeight < H4) return P_MID3;
-        return P_NEAR;
-    }
-    private double pickVoltageCompStep(double batteryV) {
-        if (batteryV >= V1) return VC_FRESH;
-        if (batteryV >= V2) return VC_MID1;
-        if (batteryV >= V3) return VC_MID2;
-        if (batteryV >= V4) return VC_MID3;
-        return VC_LOW;
+        if (tagHeight < H1) return V_FAR;
+        if (tagHeight < H2) return V_MID1;
+        if (tagHeight < H3) return V_MID2;
+        if (tagHeight < H4) return V_MID3;
+        return V_NEAR;
     }
 
 
@@ -305,7 +282,7 @@ public class FullBlue extends LinearOpMode {
         if (gamepad2.left_bumper) {
             leftBeltPower = 1.0;
         } else if (gamepad2.left_stick_y < 0) {
-            leftBeltPower = 1.0;
+            leftBeltPower = -1.0;
         } else {
             leftBeltPower = 0.0;
         }
@@ -337,28 +314,30 @@ public class FullBlue extends LinearOpMode {
         rightIntakeRightServo.setPower(rightIntakePower);
     }
 
-    private double getBatteryVoltage() {
-        double minV = Double.POSITIVE_INFINITY;
-        for (VoltageSensor sensor : hardwareMap.voltageSensor) {
-            double v = sensor.getVoltage();
-            if (v > 0) minV = Math.min(minV, v);
-        }
-        return (minV == Double.POSITIVE_INFINITY) ? 12.0 : minV;
-    }
 
 
 
-    private double pickOverVoltageReduction(double batteryV) {
-        if (batteryV <= OV1) return OV_OK;
-        if (batteryV <= OV2) return OV_HIGH1;
-        if (batteryV <= OV3) return OV_HIGH2;
-        return OV_HIGH3;
-    }
 
-
-
+    private double zoneVelOut = 0.0;      // zone target velocity
+    private double finalVelOut = 0.0;     // scaled target velocity
+    private double leftVelOut = 0.0;      // measured
+    private double rightVelOut = 0.0;     // measured
 
     private void handleLauncherPower(double tagHeight) {
+
+        boolean upPressed = gamepad2.dpad_up && !lastDpadUp;
+        boolean downPressed = gamepad2.dpad_down && !lastDpadDown;
+
+        if (upPressed) {
+            noTagVelocity += NO_TAG_STEP;
+        }
+
+        if (downPressed) {
+            noTagVelocity -= NO_TAG_STEP;
+        }
+
+        lastDpadUp = gamepad2.dpad_up;
+        lastDpadDown = gamepad2.dpad_down;
 
         // Direction toggle
         if (gamepad2.dpad_left) {
@@ -367,58 +346,43 @@ public class FullBlue extends LinearOpMode {
             launcherDirection = 1;
         }
 
-        // Manual scale knob
-        if (gamepad2.dpad_down) {
-            launchPowerScale = 0.95;
-        } else if (gamepad2.dpad_up) {
-            launchPowerScale = 1.00;
-        }
 
-        // 1) Zone power (distance steps)
-        zonePowerOut = pickPowerFromTagHeight(tagHeight);
+        // 1) Zone velocity from tag height
+        zoneVelOut = pickVelocityFromTagHeight(tagHeight);
 
-        // 2) Voltage step multiplier
-        batteryVOut = getBatteryVoltage();
-        voltCompOut = pickVoltageCompStep(batteryVOut);
-        overVoltOut = pickOverVoltageReduction(batteryVOut);
-
-// Final power (zone * scale * voltage comp * over-voltage reduction)
-        finalPowerOut = zonePowerOut * launchPowerScale * voltCompOut * overVoltOut;
-
-        // Clamp to legal motor power range
-        finalPowerOut = Math.max(0.0, Math.min(1.0, finalPowerOut));
+        // 2) Apply manual scaling
+        finalVelOut = zoneVelOut;
 
         boolean fire = (gamepad2.left_trigger > 0.05) || (gamepad2.right_trigger > 0.05);
 
         if (fire) {
-            motorPowerOut = finalPowerOut;
-            leftLauncher.setPower(finalPowerOut * launcherDirection);
-            rightLauncher.setPower(-finalPowerOut * launcherDirection);
+            // Keep your original sign convention: right is negative relative to left
+            leftLauncher.setVelocity( (finalVelOut +150) * launcherDirection);
+            rightLauncher.setVelocity((-finalVelOut - 150) * launcherDirection);
         } else {
-            motorPowerOut = 0.0;
-            leftLauncher.setPower(0);
-            rightLauncher.setPower(0);
+            leftLauncher.setVelocity(0);
+            rightLauncher.setVelocity(0);
         }
+
+        // Read actual velocity for telemetry
+        leftVelOut = leftLauncher.getVelocity();
+        rightVelOut = rightLauncher.getVelocity();
     }
 
 
     private void updateTelemetry(double tagHeight) {
-        telemetry.addData("position", drive.localizer.getPose());
         telemetry.addData("Drive Power", getDrivePowerModifier());
-        telemetry.addData("Launch Power", launchPowerScale);
-        telemetry.addData("BatteryV", "%.2f", batteryVOut);
-        telemetry.addData("ZonePower", "%.3f", zonePowerOut);
-        telemetry.addData("VoltAdj", "%.3f", voltCompOut);
-        telemetry.addData("FinalPower", "%.3f", finalPowerOut);
-        telemetry.addData("MotorPower", "%.3f", motorPowerOut);
         telemetry.addData("Tag Height", tagHeight);
-        telemetry.addData("OverVoltAdj", "%.3f", overVoltOut);
         telemetry.addData("LeftTop",  gamepad2.a ? "DOWN" :
                 (Math.abs(gamepad2.left_stick_y) > INTAKE_DEADBAND ? "UP" : "MID"));
         telemetry.addData("RightTop", gamepad2.b ? "DOWN" :
                 (Math.abs(gamepad2.right_stick_y) > INTAKE_DEADBAND ? "UP" : "MID"));
         boolean tagVisible = tagHeight >= 0;
         telemetry.addData("Tag", tagVisible ? "FOUND" : "NOT FOUND");
+        telemetry.addData("ZoneVel(tps)", "%.0f", zoneVelOut);
+        telemetry.addData("TargetVel(tps)", "%.0f", finalVelOut);
+        telemetry.addData("LeftVel(tps)", "%.0f", leftVelOut);
+        telemetry.addData("RightVel(tps)", "%.0f", rightVelOut);
         telemetry.update();
     }
 
