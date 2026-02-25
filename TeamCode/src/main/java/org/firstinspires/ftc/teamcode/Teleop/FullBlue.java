@@ -54,16 +54,18 @@ public class FullBlue extends LinearOpMode {
     private static final double LEFT_MIDDLE_POS = 0.5;
 
     // Height thresholds (pixels) - tune these with telemetry
-    private static final double H1 = 30;
-    private static final double H2 = 34;
-    private static final double H3 = 38;
-    private static final double H4 = 42;
+    private static final double H1 = 26;
+    private static final double H2 = 30;
+    private static final double H3 = 34;
+    private static final double H4 = 36;
+    private static final double H5 = 42;
 
     // Matching powers for each zone (far -> near)
-    private static final double V_FAR  = 2100;
-    private static final double V_MID1 = 2000;
-    private static final double V_MID2 = 1900;
-    private static final double V_MID3 = 1800;
+    private static final double V_FAR  = 2200;
+    private static final double V_MID1 = 2100;
+    private static final double V_MID2 = 2000;
+    private static final double V_MID3 = 1900;
+    private static final double V_MID4 = 1800;
     private static final double V_NEAR = 1700;
 
     private double noTagVelocity = 1725;
@@ -150,7 +152,7 @@ public class FullBlue extends LinearOpMode {
     // ============================================================
 
     @Override
-    public void runOpMode() throws InterruptedException {
+    public void runOpMode() {
         initHardware();
         initDriveDirectionsAndBrakes();
         initColorSensorsAndLights();
@@ -368,6 +370,8 @@ public class FullBlue extends LinearOpMode {
         if (tagHeight < H2) return V_MID1;
         if (tagHeight < H3) return V_MID2;
         if (tagHeight < H4) return V_MID3;
+        if (tagHeight < H5) return V_MID4;
+
         return V_NEAR;
     }
 
@@ -512,18 +516,17 @@ public class FullBlue extends LinearOpMode {
         }
         // else: keep normal (next/flash or intake-side-select)
 
-        LeftLight.setPosition(leftPos);
-        RightLight.setPosition(rightPos);
+        boolean gp2Override = applyGamepad2DpadLightOverride();
 
-        telemetry.addData("L Mode", leftMode);
-        telemetry.addData("R Mode", rightMode);
-        telemetry.addData("L Color", leftResult);
-        telemetry.addData("R Color", rightResult);
+        if (!gp2Override) {
+            LeftLight.setPosition(leftPos);
+            RightLight.setPosition(rightPos);
+        }
+
         telemetry.addData("L Log", dequeToString(leftLog));
         telemetry.addData("R Log", dequeToString(rightLog));
         telemetry.addData("L Next", peekLaunchNext(leftLog));
         telemetry.addData("R Next", peekLaunchNext(rightLog));
-        telemetry.addData("Driver LT/RT", "%s / %s", driverLT, driverRT);
     }
     private void clearAllBalls() {
         leftLog.clear();
@@ -693,7 +696,7 @@ public class FullBlue extends LinearOpMode {
 
     private double computeFlashPos(ArrayDeque<String> log, double startSec) {
         int n = log.size();
-        if (n <= 0) return -1;
+        if (n == 0) return -1;
 
         double t = getRuntime() - startSec;
 
@@ -740,6 +743,30 @@ public class FullBlue extends LinearOpMode {
         }
         sb.append("]");
         return sb.toString();
+    }
+
+    private boolean applyGamepad2DpadLightOverride() {
+
+
+        if (gamepad2.dpad_down) {
+            LeftLight.setPosition(YELLOW_POS);
+            RightLight.setPosition(YELLOW_POS);
+            return true;
+        }
+
+        if (gamepad2.dpad_left) {
+            LeftLight.setPosition(GREEN_POS);
+            RightLight.setPosition(PURPLE_POS);
+            return true;
+        }
+
+        if (gamepad2.dpad_right) {
+            LeftLight.setPosition(PURPLE_POS);
+            RightLight.setPosition(GREEN_POS);
+            return true;
+        }
+
+        return false; // no override active
     }
 
     // =========================

@@ -132,7 +132,7 @@ public class RedGoalGate9 extends LinearOpMode {
                         new PrimeLaunchers(LeftLauncher, RightLauncher, 1700, 1625, 1),
                         new StartBeltDelayed(LeftBeltMotor,1,1),
                         new StartBeltDelayed(RightBeltMotor, 1, 1),
-                        new DetectAprilTag(Camera, tag, 4),
+                        new DetectAprilTag(Camera, tag, .1),
                         new TopRightIntake(RightTopServo, 3)
 
                 )
@@ -216,17 +216,15 @@ public class RedGoalGate9 extends LinearOpMode {
 
             drive.updatePoseEstimate();
             Action move5 = drive.actionBuilder(drive.localizer.getPose())
-                    .strafeToLinearHeading(new Vector2d(27,-24),Math.toRadians(-30))
-                    .waitSeconds(.75)
+                    .strafeToLinearHeading(new Vector2d(27,-24),Math.toRadians(-33))
+                    .waitSeconds(1.25)
                     .strafeToLinearHeading(new Vector2d(3,-40),Math.toRadians(-90))
                     .build();
 
             Actions.runBlocking(new ParallelAction(
                     move5,
                     new PrimeLaunchers(LeftLauncher,RightLauncher,1750,1650,1),
-                    new StartBeltDelayed(RightBeltMotor,1,.75),
-                    new StartBeltDelayed(RightBeltMotor,0,1),
-                    new StartBeltDelayed(RightBeltMotor,1,1.25)
+                    new StartBeltDelayed(RightBeltMotor,1,1.5)
             ));
 
         }

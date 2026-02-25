@@ -197,20 +197,20 @@ public class RedFront9Sorted extends LinearOpMode {
                             .strafeToLinearHeading(new Vector2d(16,-30),Math.toRadians(0))
                             //Start intaking ball 4
                             .strafeToLinearHeading(new Vector2d(16,-39.5),Math.toRadians(0),IntakeSpeed)
-                            .stopAndAdd(new RedGoalGate6Patterned.TopRightIntake(RightTopServo, 1))
-                            .stopAndAdd(new RedGoalGate6Patterned.LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,1))
+                            .stopAndAdd(new TopRightIntake(RightTopServo, 1))
+                            .stopAndAdd(new LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,1))
                             //Backup and spin
                             .strafeToLinearHeading(new Vector2d(16,-34),Math.toRadians(0))
                             .strafeToLinearHeading(new Vector2d(16,-33),Math.toRadians(90))
-                            .stopAndAdd(new RedGoalGate6Patterned.TopRightIntake(RightTopServo, 3))
-                            .stopAndAdd(new RedGoalGate6Patterned.TopLeftIntake(LeftTopServo, 3))
+                            .stopAndAdd(new TopRightIntake(RightTopServo, 3))
+                            .stopAndAdd(new TopLeftIntake(LeftTopServo, 3))
                             //lineup for ball 6
                             .strafeToLinearHeading(new Vector2d(16,-37),Math.toRadians(180))
-                            .stopAndAdd(new RedGoalGate6Patterned.IntakeStop(RightIntakeLeftServo,RightIntakeRightServo,RightBeltMotor))
+                            .stopAndAdd(new IntakeStop(RightIntakeLeftServo,RightIntakeRightServo,RightBeltMotor))
                             //Start intaking ball 6
                             .strafeToLinearHeading(new Vector2d(16,-52),Math.toRadians(180))
-                            .afterTime(.75,new RedGoalGate6Patterned.TopLeftIntake(LeftTopServo, 1))
-                            .afterTime(1.25,new RedGoalGate6Patterned.TopLeftIntake(LeftTopServo, 3))
+                            .afterTime(.75,new TopLeftIntake(LeftTopServo, 1))
+                            .afterTime(1.25,new TopLeftIntake(LeftTopServo, 3))
                             .strafeToLinearHeading(new Vector2d(20,-30),Math.toRadians(-120))
                             .build()
             );
@@ -301,20 +301,20 @@ public class RedFront9Sorted extends LinearOpMode {
                             .strafeToLinearHeading(new Vector2d(16,-30),Math.toRadians(0))
                             //Start intaking ball 4
                             .strafeToLinearHeading(new Vector2d(16,-39.5),Math.toRadians(0),IntakeSpeed)
-                            .stopAndAdd(new RedGoalGate6Patterned.TopRightIntake(RightTopServo, 1))
-                            .stopAndAdd(new RedGoalGate6Patterned.LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,1))
+                            .stopAndAdd(new TopRightIntake(RightTopServo, 1))
+                            .stopAndAdd(new LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,1))
                             //Backup and spin
                             .strafeToLinearHeading(new Vector2d(16,-34),Math.toRadians(0))
                             .strafeToLinearHeading(new Vector2d(16,-33),Math.toRadians(90))
-                            .stopAndAdd(new RedGoalGate6Patterned.TopRightIntake(RightTopServo, 3))
-                            .stopAndAdd(new RedGoalGate6Patterned.TopLeftIntake(LeftTopServo, 3))
+                            .stopAndAdd(new TopRightIntake(RightTopServo, 3))
+                            .stopAndAdd(new TopLeftIntake(LeftTopServo, 3))
                             //lineup for ball 6
                             .strafeToLinearHeading(new Vector2d(16,-37),Math.toRadians(180))
-                            .stopAndAdd(new RedGoalGate6Patterned.IntakeStop(RightIntakeLeftServo,RightIntakeRightServo,RightBeltMotor))
+                            .stopAndAdd(new IntakeStop(RightIntakeLeftServo,RightIntakeRightServo,RightBeltMotor))
                             //Start intaking ball 6
                             .strafeToLinearHeading(new Vector2d(16,-52),Math.toRadians(180))
-                            .afterTime(.75,new RedGoalGate6Patterned.TopLeftIntake(LeftTopServo, 1))
-                            .afterTime(1.25,new RedGoalGate6Patterned.TopLeftIntake(LeftTopServo, 3))
+                            .afterTime(.75,new TopLeftIntake(LeftTopServo, 1))
+                            .afterTime(1.25,new TopLeftIntake(LeftTopServo, 3))
                             .strafeToLinearHeading(new Vector2d(20,-30),Math.toRadians(-120))
                             .build()
             );
@@ -401,20 +401,20 @@ public class RedFront9Sorted extends LinearOpMode {
                             .strafeToLinearHeading(new Vector2d(16,-30),Math.toRadians(0))
                             //Start intaking ball 4
                             .strafeToLinearHeading(new Vector2d(16,-38.5),Math.toRadians(0),IntakeSpeed)
-                            .stopAndAdd(new RedGoalGate6Patterned.TopRightIntake(RightTopServo, 1))
-                            .stopAndAdd(new RedGoalGate6Patterned.LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,1))
+                            .stopAndAdd(new TopRightIntake(RightTopServo, 1))
+                            .stopAndAdd(new LeftIntakeStart(LeftIntakeLeftServo,LeftIntakeRightServo,LeftBeltMotor,1))
                             //Backup and spin
                             .strafeToLinearHeading(new Vector2d(16,-34),Math.toRadians(0))
                             .strafeToLinearHeading(new Vector2d(16,-33),Math.toRadians(90))
-                            .stopAndAdd(new RedGoalGate6Patterned.TopRightIntake(RightTopServo, 3))
-                            .stopAndAdd(new RedGoalGate6Patterned.TopLeftIntake(LeftTopServo, 3))
+                            .stopAndAdd(new TopRightIntake(RightTopServo, 3))
+                            .stopAndAdd(new TopLeftIntake(LeftTopServo, 3))
                             //lineup for ball 6
                             .strafeToLinearHeading(new Vector2d(16,-37),Math.toRadians(180))
-                            .stopAndAdd(new RedGoalGate6Patterned.IntakeStop(RightIntakeLeftServo,RightIntakeRightServo,RightBeltMotor))
+                            .stopAndAdd(new IntakeStop(RightIntakeLeftServo,RightIntakeRightServo,RightBeltMotor))
                             //Start intaking ball 6
                             .strafeToLinearHeading(new Vector2d(16,-52),Math.toRadians(180))
-                            .afterTime(.75,new RedGoalGate6Patterned.TopLeftIntake(LeftTopServo, 1))
-                            .afterTime(1.25,new RedGoalGate6Patterned.TopLeftIntake(LeftTopServo, 3))
+                            .afterTime(.75,new TopLeftIntake(LeftTopServo, 1))
+                            .afterTime(1.25,new TopLeftIntake(LeftTopServo, 3))
                             .strafeToLinearHeading(new Vector2d(20,-30),Math.toRadians(-120))
                             .build()
             );

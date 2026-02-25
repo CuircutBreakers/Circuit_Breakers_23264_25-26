@@ -40,7 +40,6 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
-import org.firstinspires.ftc.teamcode.CustomPathTest;
 import org.firstinspires.ftc.teamcode.MecanumDrive;
 import org.firstinspires.ftc.teamcode.OTOSLocalizer;
 import org.firstinspires.ftc.teamcode.PinpointLocalizer;
@@ -299,7 +298,6 @@ public final class TuningOpModes {
 
         manager.register(metaForClass(ManualFeedbackTuner.class), ManualFeedbackTuner.class);
         manager.register(metaForClass(SplineTest.class), SplineTest.class);
-        manager.register(metaForClass(CustomPathTest.class), CustomPathTest.class);
         manager.register(metaForClass(LocalizationTest.class), LocalizationTest.class);
 
         manager.register(metaForClass(OTOSAngularScalarTuner.class), new OTOSAngularScalarTuner(dvf));
