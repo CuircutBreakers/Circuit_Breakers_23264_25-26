@@ -145,6 +145,7 @@ public class FullBlue extends LinearOpMode {
 
     // Reset balls (gamepad2.y)
     private boolean lastY2 = false;
+    private static final double SELECT_X_DEADBAND = 0.2;
 
     // ============================================================
 
@@ -471,6 +472,25 @@ public class FullBlue extends LinearOpMode {
             else rightPos = p;
         }
 
+        // -------- INTAKE SIDE-SELECT OVERRIDE (gamepad2 left stick X) --------
+        // If either side is intaking AND operator points left/right with left stick X,
+        // show which launcher is being "selected" using YELLOW + OFF.
+        boolean anyIntaking = (leftMode == SideMode.INTAKE) || (rightMode == SideMode.INTAKE);
+        double selX = gamepad2.left_stick_x;
+
+        if (anyIntaking) {
+            if (selX <= -SELECT_X_DEADBAND) {
+                // select LEFT
+                leftPos = YELLOW_POS;
+                rightPos = OFF_POS;
+            } else if (selX >= SELECT_X_DEADBAND) {
+                // select RIGHT
+                leftPos = OFF_POS;
+                rightPos = YELLOW_POS;
+            }
+            // if stick is centered, do nothing (keep flash/next behavior)
+        }
+
         // -------- DRIVER OVERRIDE (gamepad1 triggers) --------
         // While driver holds RIGHT trigger:
         //   Left OFF, Right RED
@@ -490,7 +510,7 @@ public class FullBlue extends LinearOpMode {
             leftPos = RED_POS;
             rightPos = OFF_POS;
         }
-        // else: keep normal (next/flash)
+        // else: keep normal (next/flash or intake-side-select)
 
         LeftLight.setPosition(leftPos);
         RightLight.setPosition(rightPos);
@@ -505,7 +525,6 @@ public class FullBlue extends LinearOpMode {
         telemetry.addData("R Next", peekLaunchNext(rightLog));
         telemetry.addData("Driver LT/RT", "%s / %s", driverLT, driverRT);
     }
-
     private void clearAllBalls() {
         leftLog.clear();
         rightLog.clear();

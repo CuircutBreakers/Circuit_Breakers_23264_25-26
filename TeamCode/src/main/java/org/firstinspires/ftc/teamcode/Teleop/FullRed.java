@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.Teleop;
 
+import android.graphics.Color;
+
 import com.qualcomm.hardware.dfrobot.HuskyLens;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -7,10 +9,16 @@ import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.DistanceSensor;
+import com.qualcomm.robotcore.hardware.NormalizedColorSensor;
+import com.qualcomm.robotcore.hardware.NormalizedRGBA;
 import com.qualcomm.robotcore.hardware.Servo;
 
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.MecanumDrive;
 import org.firstinspires.ftc.teamcode.PoseStorage;
+
+import java.util.ArrayDeque;
 
 @TeleOp
 public class FullRed extends LinearOpMode {
@@ -45,10 +53,6 @@ public class FullRed extends LinearOpMode {
     private static final double LEFT_DOWN_POS   = 0.51;
     private static final double LEFT_MIDDLE_POS = 0.5;
 
-    // Delay before settling to middle after release (ms)
-
-    // State tracking
-
     // Height thresholds (pixels) - tune these with telemetry
     private static final double H1 = 30;
     private static final double H2 = 34;
@@ -68,22 +72,88 @@ public class FullRed extends LinearOpMode {
     private boolean lastDpadUp = false;
     private boolean lastDpadDown = false;
 
-
-
-
-
-    // pixels of hysteresis (tune)
-
     private static final double INTAKE_DEADBAND = 0.05;
 
     final int TargetTagID = 5;
 
+    // ============================================================
+    // COLOR SENSORS + LIGHTS
+    // ============================================================
+    private NormalizedColorSensor leftColor, rightColor;
+    private DistanceSensor leftDistance, rightDistance;
+    private Servo LeftLight, RightLight;
 
+    // Distance gate for reading color
+    private static final double COLOR_CAP_CM = 3.5;
+
+    // Tuned hue bands (your values)
+    private static final float GREEN_MIN = 100f, GREEN_MAX = 180f;
+    private static final float PURPLE_MIN = 200f, PURPLE_MAX = 280f;
+
+    // Light servo positions
+    private static final double GREEN_POS   = 0.50;
+    private static final double PURPLE_POS  = 0.72;
+    private static final double YELLOW_POS  = 0.385; // separator + pre/post flash
+    private static final double UNKNOWN_POS = 1.00;
+
+    // Driver override colors
+    private static final double RED_POS   = 0.28;
+    private static final double OFF_POS   = 0.0;  // you said "turn off" -> using 0.0 (change if your off is different)
+
+    // Log limits
+    private static final int MAX_LOG = 3;
+    private static final int STABLE_LOOPS_REQUIRED = 2;
+    private static final int BREAK_LOOPS_REQUIRED  = 6;
+    private static final int LAUNCH_GAP_LOOPS_REQUIRED = 2;
+
+    // Flash timing: yellow 0.25s, colors 0.50s
+    private static final double YELLOW_SEC = 0.25;
+    private static final double COLOR_SEC  = 0.50;
+
+    private final ArrayDeque<String> leftLog = new ArrayDeque<>(MAX_LOG);
+    private final ArrayDeque<String> rightLog = new ArrayDeque<>(MAX_LOG);
+
+    private final float[] leftHsv = new float[3];
+    private final float[] rightHsv = new float[3];
+
+    // Intake event state (left)
+    private String leftLastSeen = "NONE";
+    private int leftStableCount = 0;
+    private int leftBreakCount = BREAK_LOOPS_REQUIRED;
+    private boolean leftLoggedThisEvent = false;
+
+    // Intake event state (right)
+    private String rightLastSeen = "NONE";
+    private int rightStableCount = 0;
+    private int rightBreakCount = BREAK_LOOPS_REQUIRED;
+    private boolean rightLoggedThisEvent = false;
+
+    // Launch removal state (left/right)
+    private boolean leftWasSeeingLaunchColor = false;
+    private int leftLaunchGapCount = 0;
+
+    private boolean rightWasSeeingLaunchColor = false;
+    private int rightLaunchGapCount = 0;
+
+    // Flash state (gamepad2.x)
+    private boolean lastX = false;
+    private boolean leftFlashing = false;
+    private double leftFlashStartSec = 0.0;
+
+    private boolean rightFlashing = false;
+    private double rightFlashStartSec = 0.0;
+
+    // Reset balls (gamepad2.y)
+    private boolean lastY2 = false;
+    private static final double SELECT_X_DEADBAND = 0.2;
+
+    // ============================================================
 
     @Override
     public void runOpMode() throws InterruptedException {
         initHardware();
         initDriveDirectionsAndBrakes();
+        initColorSensorsAndLights();
 
         telemetry.addLine("Initialized. Waiting for start...");
         telemetry.update();
@@ -100,13 +170,14 @@ public class FullRed extends LinearOpMode {
             TopLeftIntake();
             TopRightIntake();
 
-            double tagHeight = readTagHeight();      // <-- read ONCE
-            handleLauncherPower(tagHeight);          // <-- use it
-            updateTelemetry(tagHeight);              // <-- show it
+            updateColorSensorsAndLights();   // includes driver overrides + reset
+
+            double tagHeight = readTagHeight();
+            handleLauncherPower(tagHeight);
+            updateTelemetry(tagHeight);
 
             idle();
         }
-
     }
 
     // =========================
@@ -129,7 +200,6 @@ public class FullRed extends LinearOpMode {
         leftLauncher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         rightLauncher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-// Flywheels usually feel better with FLOAT
         leftLauncher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         rightLauncher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
@@ -150,13 +220,40 @@ public class FullRed extends LinearOpMode {
         camera = hardwareMap.get(HuskyLens.class, "huskylens");
         camera.selectAlgorithm(HuskyLens.Algorithm.TAG_RECOGNITION);
 
-
         rightIntakeTopServo.setPosition(RIGHT_MIDDLE_POS);
         leftIntakeTopServo.setPosition(LEFT_MIDDLE_POS);
-        // RoadRunner / drive wrapper
+
         drive = new MecanumDrive(hardwareMap, PoseStorage.currentPose);
     }
 
+    private void initColorSensorsAndLights() {
+        leftColor     = hardwareMap.get(NormalizedColorSensor.class, "LeftColorSensor");
+        leftDistance  = hardwareMap.get(DistanceSensor.class, "LeftColorSensor");
+        LeftLight     = hardwareMap.get(Servo.class, "LeftLight");
+
+        rightColor    = hardwareMap.get(NormalizedColorSensor.class, "RightColorSensor");
+        rightDistance = hardwareMap.get(DistanceSensor.class, "RightColorSensor");
+        RightLight    = hardwareMap.get(Servo.class, "RightLight");
+
+        LeftLight.setPosition(UNKNOWN_POS);
+        RightLight.setPosition(UNKNOWN_POS);
+    }
+
+    private void initDriveDirectionsAndBrakes() {
+        frontLeft.setDirection(DcMotor.Direction.FORWARD);
+        backLeft.setDirection(DcMotor.Direction.FORWARD);
+        frontRight.setDirection(DcMotor.Direction.REVERSE);
+        backRight.setDirection(DcMotor.Direction.REVERSE);
+
+        frontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        frontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    }
+
+    // =========================
+    // Top intake servos
+    // =========================
     private void updateTopIntakeServo(Servo servo,
                                       double intakeStickY,
                                       boolean downButton,
@@ -166,22 +263,16 @@ public class FullRed extends LinearOpMode {
 
         boolean intakeRunning = Math.abs(intakeStickY) > INTAKE_DEADBAND;
 
-        if (downButton) {
-            servo.setPosition(downPos);     // button ALWAYS wins
-        } else if (intakeRunning) {
-            servo.setPosition(upPos);       // intake moving -> up
-        } else {
-            servo.setPosition(midPos);      // idle -> middle
-        }
+        if (downButton) servo.setPosition(downPos);
+        else if (intakeRunning) servo.setPosition(upPos);
+        else servo.setPosition(midPos);
     }
-
-
 
     private void TopRightIntake() {
         updateTopIntakeServo(
                 rightIntakeTopServo,
-                gamepad2.right_stick_y,   // right intake joystick
-                gamepad2.b,               // button forces DOWN
+                gamepad2.right_stick_y,
+                gamepad2.b,
                 RIGHT_UP_POS,
                 RIGHT_DOWN_POS,
                 RIGHT_MIDDLE_POS
@@ -191,54 +282,12 @@ public class FullRed extends LinearOpMode {
     private void TopLeftIntake() {
         updateTopIntakeServo(
                 leftIntakeTopServo,
-                gamepad2.left_stick_y,    // left intake joystick
-                gamepad2.a,               // button forces DOWN
+                gamepad2.left_stick_y,
+                gamepad2.a,
                 LEFT_UP_POS,
                 LEFT_DOWN_POS,
                 LEFT_MIDDLE_POS
         );
-    }
-
-
-    private double pickVelocityFromTagHeight(double tagHeight) {
-        if (tagHeight < 0) return noTagVelocity; // no tag
-
-        if (tagHeight < H1) return V_FAR;
-        if (tagHeight < H2) return V_MID1;
-        if (tagHeight < H3) return V_MID2;
-        if (tagHeight < H4) return V_MID3;
-        return V_NEAR;
-    }
-
-
-
-    private double readTagHeight() {
-
-        double height = -1.0; // -1 = no tag found
-
-        HuskyLens.Block[] blocks = camera.blocks();
-        for (HuskyLens.Block b : blocks) {
-            if (b.id == TargetTagID) {
-                height = b.height;
-                break;
-            }
-        }
-
-        return height;
-    }
-
-    private void initDriveDirectionsAndBrakes() {
-        // Direction config (adjust if needed for your wiring)
-        frontLeft.setDirection(DcMotor.Direction.FORWARD);
-        backLeft.setDirection(DcMotor.Direction.FORWARD);
-        frontRight.setDirection(DcMotor.Direction.REVERSE);
-        backRight.setDirection(DcMotor.Direction.REVERSE);
-
-        // Brake mode for better control when sticks are released
-        frontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        frontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        backLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        backRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     }
 
     // =========================
@@ -249,19 +298,17 @@ public class FullRed extends LinearOpMode {
     }
 
     private void handleDrive() {
-        // GAMEPAD 1: MECANUM DRIVE
-        double y  = -gamepad1.left_stick_y;   // forward is negative on stick
-        double x  =  gamepad1.left_stick_x;   // strafe
-        double rx =  gamepad1.right_stick_x;  // rotation
+        double y  = -gamepad1.left_stick_y;
+        double x  =  gamepad1.left_stick_x;
+        double rx =  gamepad1.right_stick_x;
 
-        // Normalize
         double denominator = Math.max(Math.abs(y) + Math.abs(x) + Math.abs(rx), 1.0);
         double fl = (y + x + rx) / denominator;
         double bl = (y - x + rx) / denominator;
         double fr = (y - x - rx) / denominator;
         double br = (y + x - rx) / denominator;
 
-        double drivePower = getDrivePowerModifier(); // from gamepad2 dpad up/down (your current behavior)
+        double drivePower = getDrivePowerModifier();
 
         frontLeft.setPower(fl * drivePower);
         backLeft.setPower(bl * drivePower);
@@ -270,122 +317,451 @@ public class FullRed extends LinearOpMode {
     }
 
     private double getDrivePowerModifier() {
-        // Your current logic: gamepad2 dpad_down = 0.5, dpad_up = 1.0, otherwise default 1.0
         if (gamepad1.left_bumper) return 0.5;
         return 1.0;
-
     }
 
+    // SIDE SPECIFIC belts
     private void handleBelts() {
-        // Left belt
         double leftBeltPower;
-        if (gamepad2.left_bumper) {
-            leftBeltPower = 1.0;
-        } else if (gamepad2.left_stick_y < 0) {
-            leftBeltPower = -1.0;
-        } else {
-            leftBeltPower = 0.0;
-        }
+        if (gamepad2.left_bumper) leftBeltPower = 1.0;             // left launch
+        else if (gamepad2.left_stick_y < -0.6) leftBeltPower = -1.0; // left intake
+        else leftBeltPower = 0.0;
 
-        // Right belt
         double rightBeltPower;
-        if (gamepad2.right_bumper) {
-            rightBeltPower = 1.0;
-        } else if (gamepad2.right_stick_y < 0) {
-            rightBeltPower = -1.0;
-        } else {
-            rightBeltPower = 0.0;
-        }
+        if (gamepad2.right_bumper) rightBeltPower = 1.0;              // right launch
+        else if (gamepad2.right_stick_y < -0.6) rightBeltPower = -1.0; // right intake
+        else rightBeltPower = 0.0;
 
         leftBeltMotor.setPower(leftBeltPower);
         rightBeltMotor.setPower(rightBeltPower);
     }
 
+    // SIDE SPECIFIC intakes
     private void handleIntakes() {
+        // Left intake only when in left intake mode and not launching
+        double leftIntakePower;
+        if (gamepad2.left_bumper) leftIntakePower = 0.0;
+        else if (gamepad2.left_stick_y < -0.6) leftIntakePower = gamepad2.left_stick_y;
+        else leftIntakePower = 0.0;
 
-        // Left intake (all three CRServos same power)
-        double leftIntakePower = gamepad2.left_stick_y;
         leftIntakeLeftServo.setPower(leftIntakePower);
         leftIntakeRightServo.setPower(leftIntakePower);
 
-        // Right intake (note your original sign convention)
-        double rightIntakePower = gamepad2.right_stick_y;
+        // Right intake only when in right intake mode and not launching
+        double rightIntakePower;
+        if (gamepad2.right_bumper) rightIntakePower = 0.0;
+        else if (gamepad2.right_stick_y < -0.6) rightIntakePower = gamepad2.right_stick_y;
+        else rightIntakePower = 0.0;
+
         rightIntakeLeftServo.setPower(-rightIntakePower);
         rightIntakeRightServo.setPower(rightIntakePower);
     }
 
+    // =========================
+    // Launcher
+    // =========================
+    private double pickVelocityFromTagHeight(double tagHeight) {
+        if (tagHeight < 0) return noTagVelocity;
 
+        if (tagHeight < H1) return V_FAR;
+        if (tagHeight < H2) return V_MID1;
+        if (tagHeight < H3) return V_MID2;
+        if (tagHeight < H4) return V_MID3;
+        return V_NEAR;
+    }
 
+    private double readTagHeight() {
+        double height = -1.0;
+        HuskyLens.Block[] blocks = camera.blocks();
+        for (HuskyLens.Block b : blocks) {
+            if (b.id == TargetTagID) { height = b.height; break; }
+        }
+        return height;
+    }
 
-
-    private double zoneVelOut = 0.0;      // zone target velocity
-    private double finalVelOut = 0.0;     // scaled target velocity
-    private double leftVelOut = 0.0;      // measured
-    private double rightVelOut = 0.0;     // measured
+    private double zoneVelOut = 0.0;
+    private double finalVelOut = 0.0;
+    private double leftVelOut = 0.0;
+    private double rightVelOut = 0.0;
 
     private void handleLauncherPower(double tagHeight) {
 
         boolean upPressed = gamepad2.dpad_up && !lastDpadUp;
         boolean downPressed = gamepad2.dpad_down && !lastDpadDown;
 
-        if (upPressed) {
-            noTagVelocity += NO_TAG_STEP;
-        }
-
-        if (downPressed) {
-            noTagVelocity -= NO_TAG_STEP;
-        }
+        if (upPressed) noTagVelocity += NO_TAG_STEP;
+        if (downPressed) noTagVelocity -= NO_TAG_STEP;
 
         lastDpadUp = gamepad2.dpad_up;
         lastDpadDown = gamepad2.dpad_down;
 
-        // Direction toggle
-        if (gamepad2.dpad_left) {
-            launcherDirection = -1;
-        } else if (gamepad2.dpad_right) {
-            launcherDirection = 1;
-        }
+        if (gamepad2.dpad_left) launcherDirection = -1;
+        else if (gamepad2.dpad_right) launcherDirection = 1;
 
-
-        // 1) Zone velocity from tag height
         zoneVelOut = pickVelocityFromTagHeight(tagHeight);
-
-        // 2) Apply manual scaling
         finalVelOut = zoneVelOut;
 
         boolean fire = (gamepad2.left_trigger > 0.05) || (gamepad2.right_trigger > 0.05);
 
         if (fire) {
-            // Keep your original sign convention: right is negative relative to left
-            leftLauncher.setVelocity( (finalVelOut +150) * launcherDirection);
+            leftLauncher.setVelocity((finalVelOut + 150) * launcherDirection);
             rightLauncher.setVelocity((-finalVelOut - 150) * launcherDirection);
         } else {
             leftLauncher.setVelocity(0);
             rightLauncher.setVelocity(0);
         }
 
-        // Read actual velocity for telemetry
         leftVelOut = leftLauncher.getVelocity();
         rightVelOut = rightLauncher.getVelocity();
     }
 
+    // =========================
+    // Color sensors + lights
+    // =========================
+    private void updateColorSensorsAndLights() {
 
+        // -------- Reset all balls (gamepad2.y) --------
+        boolean y2 = gamepad2.y;
+        if (y2 && !lastY2) {
+            clearAllBalls();
+        }
+        lastY2 = y2;
+
+        // Read raw color classification
+        String leftResult  = classifyColor(leftColor, leftDistance, leftHsv);
+        String rightResult = classifyColor(rightColor, rightDistance, rightHsv);
+
+        // Side-specific modes
+        SideMode leftMode  = sideMode(gamepad2.left_stick_y,  gamepad2.left_bumper);
+        SideMode rightMode = sideMode(gamepad2.right_stick_y, gamepad2.right_bumper);
+
+        // Logging / removal
+        if (leftMode == SideMode.INTAKE) updateEventLoggerSide(leftResult, true);
+        else if (leftMode == SideMode.LAUNCH) updateLaunchRemovalSide(leftResult, leftLog, true);
+        else resetEventTrackingSide(true);
+
+        if (rightMode == SideMode.INTAKE) updateEventLoggerSide(rightResult, false);
+        else if (rightMode == SideMode.LAUNCH) updateLaunchRemovalSide(rightResult, rightLog, false);
+        else resetEventTrackingSide(false);
+
+        // Flash trigger (gamepad2.x) for both sides
+        boolean x2 = gamepad2.x;
+        if (x2 && !lastX) {
+            if (!leftLog.isEmpty())  { leftFlashing = true;  leftFlashStartSec = getRuntime(); }
+            if (!rightLog.isEmpty()) { rightFlashing = true; rightFlashStartSec = getRuntime(); }
+        }
+        lastX = x2;
+
+        // Base light behavior = show next launch (unless flashing)
+        double leftDefaultPos  = posForColor(peekLaunchNext(leftLog));
+        double rightDefaultPos = posForColor(peekLaunchNext(rightLog));
+
+        double leftPos = leftDefaultPos;
+        double rightPos = rightDefaultPos;
+
+        if (leftFlashing) {
+            double p = computeFlashPos(leftLog, leftFlashStartSec);
+            if (p < -0.5) { leftFlashing = false; leftPos = leftDefaultPos; }
+            else leftPos = p;
+        }
+
+        if (rightFlashing) {
+            double p = computeFlashPos(rightLog, rightFlashStartSec);
+            if (p < -0.5) { rightFlashing = false; rightPos = rightDefaultPos; }
+            else rightPos = p;
+        }
+
+        // -------- INTAKE SIDE-SELECT OVERRIDE (gamepad2 left stick X) --------
+        // If either side is intaking AND operator points left/right with left stick X,
+        // show which launcher is being "selected" using YELLOW + OFF.
+        boolean anyIntaking = (leftMode == SideMode.INTAKE) || (rightMode == SideMode.INTAKE);
+        double selX = gamepad2.left_stick_x;
+
+        if (anyIntaking) {
+            if (selX <= -SELECT_X_DEADBAND) {
+                // select LEFT
+                leftPos = YELLOW_POS;
+                rightPos = OFF_POS;
+            } else if (selX >= SELECT_X_DEADBAND) {
+                // select RIGHT
+                leftPos = OFF_POS;
+                rightPos = YELLOW_POS;
+            }
+            // if stick is centered, do nothing (keep flash/next behavior)
+        }
+
+        // -------- DRIVER OVERRIDE (gamepad1 triggers) --------
+        // While driver holds RIGHT trigger:
+        //   Left OFF, Right RED
+        // While driver holds LEFT trigger:
+        //   Right OFF, Left RED
+        // Both triggers -> both RED
+        boolean driverRT = gamepad1.right_trigger > 0.05;
+        boolean driverLT = gamepad1.left_trigger > 0.05;
+
+        if (driverLT && driverRT) {
+            leftPos = RED_POS;
+            rightPos = RED_POS;
+        } else if (driverRT) {
+            leftPos = OFF_POS;
+            rightPos = RED_POS;
+        } else if (driverLT) {
+            leftPos = RED_POS;
+            rightPos = OFF_POS;
+        }
+        // else: keep normal (next/flash or intake-side-select)
+
+        LeftLight.setPosition(leftPos);
+        RightLight.setPosition(rightPos);
+
+        telemetry.addData("L Mode", leftMode);
+        telemetry.addData("R Mode", rightMode);
+        telemetry.addData("L Color", leftResult);
+        telemetry.addData("R Color", rightResult);
+        telemetry.addData("L Log", dequeToString(leftLog));
+        telemetry.addData("R Log", dequeToString(rightLog));
+        telemetry.addData("L Next", peekLaunchNext(leftLog));
+        telemetry.addData("R Next", peekLaunchNext(rightLog));
+        telemetry.addData("Driver LT/RT", "%s / %s", driverLT, driverRT);
+    }
+    private void clearAllBalls() {
+        leftLog.clear();
+        rightLog.clear();
+
+        // Reset event tracking so it doesn't instantly re-log whatever it's seeing
+        leftLastSeen = "NONE";
+        leftStableCount = 0;
+        leftBreakCount = BREAK_LOOPS_REQUIRED;
+        leftLoggedThisEvent = false;
+
+        rightLastSeen = "NONE";
+        rightStableCount = 0;
+        rightBreakCount = BREAK_LOOPS_REQUIRED;
+        rightLoggedThisEvent = false;
+
+        // Reset launch-removal tracking
+        leftWasSeeingLaunchColor = false;
+        leftLaunchGapCount = 0;
+        rightWasSeeingLaunchColor = false;
+        rightLaunchGapCount = 0;
+
+        // Stop any flashing
+        leftFlashing = false;
+        rightFlashing = false;
+    }
+
+    private enum SideMode { IDLE, INTAKE, LAUNCH }
+
+    private SideMode sideMode(double stickY, boolean launchBumper) {
+        if (launchBumper) return SideMode.LAUNCH;
+        if (stickY < -0.6) return SideMode.INTAKE; // stick up
+        return SideMode.IDLE;
+    }
+
+    private String classifyColor(NormalizedColorSensor color, DistanceSensor distance, float[] hsvOut) {
+        double d = distance.getDistance(DistanceUnit.CM);
+        if (Double.isNaN(d) || d > COLOR_CAP_CM) return "TOO FAR";
+
+        NormalizedRGBA c = color.getNormalizedColors();
+        Color.RGBToHSV(
+                (int)(c.red * 255),
+                (int)(c.green * 255),
+                (int)(c.blue * 255),
+                hsvOut
+        );
+
+        float h = hsvOut[0];
+
+        if (h >= GREEN_MIN && h <= GREEN_MAX) return "GREEN";
+        if (h >= PURPLE_MIN && h <= PURPLE_MAX) return "PURPLE";
+        return "UNKNOWN";
+    }
+
+    private void updateEventLoggerSide(String result, boolean isLeft) {
+        boolean isValid = result.equals("GREEN") || result.equals("PURPLE");
+
+        if (isLeft) {
+            if (!isValid) {
+                leftStableCount = 0;
+                leftLastSeen = "NONE";
+                leftBreakCount++;
+                if (leftBreakCount >= BREAK_LOOPS_REQUIRED) leftLoggedThisEvent = false;
+                return;
+            }
+
+            leftBreakCount = 0;
+
+            if (result.equals(leftLastSeen)) leftStableCount++;
+            else { leftLastSeen = result; leftStableCount = 1; }
+
+            if (!leftLoggedThisEvent && leftStableCount >= STABLE_LOOPS_REQUIRED) {
+                pushLog(leftLog, result);
+                leftLoggedThisEvent = true;
+            }
+        } else {
+            if (!isValid) {
+                rightStableCount = 0;
+                rightLastSeen = "NONE";
+                rightBreakCount++;
+                if (rightBreakCount >= BREAK_LOOPS_REQUIRED) rightLoggedThisEvent = false;
+                return;
+            }
+
+            rightBreakCount = 0;
+
+            if (result.equals(rightLastSeen)) rightStableCount++;
+            else { rightLastSeen = result; rightStableCount = 1; }
+
+            if (!rightLoggedThisEvent && rightStableCount >= STABLE_LOOPS_REQUIRED) {
+                pushLog(rightLog, result);
+                rightLoggedThisEvent = true;
+            }
+        }
+    }
+
+    private void updateLaunchRemovalSide(String sensorResult, ArrayDeque<String> log, boolean isLeft) {
+        String next = peekLaunchNext(log);
+        if (next.equals("NONE")) {
+            if (isLeft) { leftWasSeeingLaunchColor = false; leftLaunchGapCount = 0; }
+            else { rightWasSeeingLaunchColor = false; rightLaunchGapCount = 0; }
+            return;
+        }
+
+        boolean seeingNext = sensorResult.equals(next);
+
+        if (isLeft) {
+            if (seeingNext) {
+                leftWasSeeingLaunchColor = true;
+                leftLaunchGapCount = 0;
+            } else if (leftWasSeeingLaunchColor) {
+                leftLaunchGapCount++;
+                if (leftLaunchGapCount >= LAUNCH_GAP_LOOPS_REQUIRED) {
+                    log.removeLast();
+                    leftWasSeeingLaunchColor = false;
+                    leftLaunchGapCount = 0;
+                }
+            } else {
+                leftLaunchGapCount = 0;
+            }
+        } else {
+            if (seeingNext) {
+                rightWasSeeingLaunchColor = true;
+                rightLaunchGapCount = 0;
+            } else if (rightWasSeeingLaunchColor) {
+                rightLaunchGapCount++;
+                if (rightLaunchGapCount >= LAUNCH_GAP_LOOPS_REQUIRED) {
+                    log.removeLast();
+                    rightWasSeeingLaunchColor = false;
+                    rightLaunchGapCount = 0;
+                }
+            } else {
+                rightLaunchGapCount = 0;
+            }
+        }
+    }
+
+    private void resetEventTrackingSide(boolean isLeft) {
+        if (isLeft) {
+            leftLastSeen = "NONE";
+            leftStableCount = 0;
+            leftBreakCount = BREAK_LOOPS_REQUIRED;
+            leftLoggedThisEvent = false;
+        } else {
+            rightLastSeen = "NONE";
+            rightStableCount = 0;
+            rightBreakCount = BREAK_LOOPS_REQUIRED;
+            rightLoggedThisEvent = false;
+        }
+    }
+
+    private void pushLog(ArrayDeque<String> log, String value) {
+        while (log.size() >= MAX_LOG) log.removeFirst();
+        log.addLast(value);
+    }
+
+    private String peekLaunchNext(ArrayDeque<String> log) {
+        if (log.isEmpty()) return "NONE";
+        return log.peekLast(); // newest = next to launch
+    }
+
+    private double posForColor(String colorName) {
+        if (colorName.equals("GREEN")) return GREEN_POS;
+        if (colorName.equals("PURPLE")) return PURPLE_POS;
+        return UNKNOWN_POS;
+    }
+
+    private double computeFlashPos(ArrayDeque<String> log, double startSec) {
+        int n = log.size();
+        if (n <= 0) return -1;
+
+        double t = getRuntime() - startSec;
+
+        // Pre-yellow
+        if (t < YELLOW_SEC) return YELLOW_POS;
+        t -= YELLOW_SEC;
+
+        for (int i = 0; i < n; i++) {
+
+            if (t < COLOR_SEC) {
+                String colorName = getLaunchOrderItem(log, i); // i from newest
+                return posForColor(colorName);
+            }
+            t -= COLOR_SEC;
+
+            if (t < YELLOW_SEC) return YELLOW_POS;
+            t -= YELLOW_SEC;
+        }
+
+        // Post-yellow
+        if (t < YELLOW_SEC) return YELLOW_POS;
+
+        return -1;
+    }
+
+    private String getLaunchOrderItem(ArrayDeque<String> log, int indexFromNewest) {
+        int target = log.size() - 1 - indexFromNewest;
+        int i = 0;
+        for (String s : log) {
+            if (i == target) return s;
+            i++;
+        }
+        return "NONE";
+    }
+
+    private String dequeToString(ArrayDeque<String> d) {
+        if (d.isEmpty()) return "[]";
+        StringBuilder sb = new StringBuilder("[");
+        boolean first = true;
+        for (String s : d) {
+            if (!first) sb.append(", ");
+            sb.append(s);
+            first = false;
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    // =========================
+    // Telemetry
+    // =========================
     private void updateTelemetry(double tagHeight) {
         telemetry.addData("Drive Power", getDrivePowerModifier());
         telemetry.addData("Tag Height", tagHeight);
+
         telemetry.addData("LeftTop",  gamepad2.a ? "DOWN" :
                 (Math.abs(gamepad2.left_stick_y) > INTAKE_DEADBAND ? "UP" : "MID"));
         telemetry.addData("RightTop", gamepad2.b ? "DOWN" :
                 (Math.abs(gamepad2.right_stick_y) > INTAKE_DEADBAND ? "UP" : "MID"));
+
         boolean tagVisible = tagHeight >= 0;
         telemetry.addData("Tag", tagVisible ? "FOUND" : "NOT FOUND");
+
         telemetry.addData("ZoneVel(tps)", "%.0f", zoneVelOut);
         telemetry.addData("TargetVel(tps)", "%.0f", finalVelOut);
         telemetry.addData("LeftVel(tps)", "%.0f", leftVelOut);
         telemetry.addData("RightVel(tps)", "%.0f", rightVelOut);
+
         telemetry.update();
     }
-
-
-
 }

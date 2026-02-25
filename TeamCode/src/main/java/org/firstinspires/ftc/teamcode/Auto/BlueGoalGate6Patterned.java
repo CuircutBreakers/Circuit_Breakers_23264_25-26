@@ -85,6 +85,9 @@ public class BlueGoalGate6Patterned extends LinearOpMode {
         Camera = hardwareMap.get(HuskyLens.class, "huskylens");
         Camera.selectAlgorithm(HuskyLens.Algorithm.TAG_RECOGNITION);
 
+        Servo RightLight    = hardwareMap.get(Servo.class, "RightLight");
+        Servo LeftLight     = hardwareMap.get(Servo.class, "LeftLight");
+
         //Intake pushers Init
         RightTopServo.setPosition(.485);
         LeftTopServo.setPosition(.5);
@@ -94,6 +97,12 @@ public class BlueGoalGate6Patterned extends LinearOpMode {
         sleep(200);
         LeftBeltMotor.setPower(0);
         RightBeltMotor.setPower(0);
+
+        RightLight.setPosition(.72);
+        LeftLight.setPosition(.5);
+        sleep(1000);
+        RightLight.setPosition(.6);
+        LeftLight.setPosition(.6);
         //endregion
 
         waitForStart();

@@ -83,6 +83,9 @@ public class BlueFront9Sorted extends LinearOpMode {
         Camera = hardwareMap.get(HuskyLens.class, "huskylens");
         Camera.selectAlgorithm(HuskyLens.Algorithm.TAG_RECOGNITION);
 
+        Servo RightLight    = hardwareMap.get(Servo.class, "RightLight");
+        Servo LeftLight     = hardwareMap.get(Servo.class, "LeftLight");
+
         //Intake pushers Init
         RightTopServo.setPosition(.485);
         LeftTopServo.setPosition(.5);
@@ -93,6 +96,11 @@ public class BlueFront9Sorted extends LinearOpMode {
         LeftBeltMotor.setPower(0);
         RightBeltMotor.setPower(0);
         //endregion
+        RightLight.setPosition(.72);
+        LeftLight.setPosition(.5);
+        sleep(1000);
+        RightLight.setPosition(.6);
+        LeftLight.setPosition(.6);
 
         waitForStart();
 //region stage 1
